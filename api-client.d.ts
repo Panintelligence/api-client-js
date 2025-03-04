@@ -7,16 +7,16 @@ declare class ApiClientInput {
 
     constructor();
 
-    static create(method: string, url: string, body: string | null, headers: Record<string, string>): ApiClientInput;
-    static get(url: string, headers: Record<string, string>): ApiClientInput;
-    static post(url: string, body: string, headers: Record<string, string>): ApiClientInput;
-    static put(url: string, body: string, headers: Record<string, string>): ApiClientInput;
-    static delete(url: string, headers: Record<string, string>): ApiClientInput;
-    static patch(url: string, body: string, headers: Record<string, string>): ApiClientInput;
-    static createJson<T = any>(method: string, url: string, jsonObject: T, headers: Record<string, string>): ApiClientInput;
-    static postJson<T = any>(url: string, jsonObject: T, headers: Record<string, string>): ApiClientInput;
-    static putJson<T = any>(url: string, jsonObject: T, headers: Record<string, string>): ApiClientInput;
-    static patchJson<T = any>(url: string, jsonObject: T, headers: Record<string, string>): ApiClientInput;
+    static create(method: string, url: string, body: string | null, headers?: Record<string, string>): ApiClientInput;
+    static get(url: string, headers?: Record<string, string>): ApiClientInput;
+    static post(url: string, body: string, headers?: Record<string, string>): ApiClientInput;
+    static put(url: string, body: string, headers?: Record<string, string>): ApiClientInput;
+    static delete(url: string, headers?: Record<string, string>): ApiClientInput;
+    static patch(url: string, body: string, headers?: Record<string, string>): ApiClientInput;
+    static createJson<T = any>(method: string, url: string, jsonObject: T, headers?: Record<string, string>): ApiClientInput;
+    static postJson<T = any>(url: string, jsonObject: T, headers?: Record<string, string>): ApiClientInput;
+    static putJson<T = any>(url: string, jsonObject: T, headers?: Record<string, string>): ApiClientInput;
+    static patchJson<T = any>(url: string, jsonObject: T, headers?: Record<string, string>): ApiClientInput;
 }
 
 declare class ApiClientOutput {
@@ -31,7 +31,6 @@ declare class ApiClientOutput {
     getFailureReason(): string | null;
     getHeader(name: string): string | null;
     parseJsonBody<T = any>(): T | null;
-    safeParseJsonBody<T = any>(): T | null;
     asMap(): {
         statusCode: number;
         successful: boolean;

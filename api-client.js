@@ -96,7 +96,7 @@ class ApiClientInput {
      */
     static createJson(method, url, jsonObject, headers) {
         const jsonBody = JSON.stringify(jsonObject);
-        const mergedHeaders = { 'Content-Type': 'application/json', ...headers };
+        const mergedHeaders = {'Content-Type': 'application/json', ...headers};
         return ApiClientInput.create(method, url, jsonBody, mergedHeaders);
     }
 
@@ -177,26 +177,39 @@ class ApiClientOutput {
     }
 
     /**
-     * Parses the response body as JSON
-     *
-     * @return {Object|null} The parsed JSON object or null if body is empty
-     * @throws {Error} If the body is not valid JSON
-     */
-    parseJsonBody() {
-        if (!this.body) return null;
-        return JSON.parse(this.body);
-    }
-
-    /**
      * Attempts to parse the response body as JSON, returning null if parsing fails
      *
      * @return {Object|null} The parsed JSON object or null if parsing fails
      */
-    safeParseJsonBody() {
+    parseJsonBody() {
         try {
-            return this.parseJsonBody();
+            // First try standard JSON parsing
+            return JSON.parse(this.body);
         } catch (e) {
-            return null;
+            try {
+                // Handle case where body is wrapped in quotes and/or uses single quotes
+                let processedBody = this.body;
+
+                // If the string starts and ends with quotes, remove them
+                if (
+                    (processedBody.startsWith('"') && processedBody.endsWith('"')) ||
+                    (processedBody.startsWith("'") && processedBody.endsWith("'"))
+                ) {
+                    processedBody = processedBody.slice(1, -1);
+                }
+
+                // Replace single quotes with double quotes, but only those used for object properties
+                // This regex handles various forms of single-quoted properties
+                processedBody = processedBody.replace(/([{,]\s*)'([^']+)'(\s*:)/g, '$1"$2"$3');
+
+                // Also handle single-quoted values
+                processedBody = processedBody.replace(/:\s*'([^']*?)'/g, ': "$1"');
+
+                return JSON.parse(processedBody);
+            } catch (innerError) {
+                // If all parsing attempts fail, return null
+                return null;
+            }
         }
     }
 
@@ -218,7 +231,7 @@ class ApiClientOutput {
 
         const contentType = this.getHeader('Content-Type');
         if (contentType && contentType.toLowerCase().includes('json')) {
-            const jsonBody = this.safeParseJsonBody();
+            const jsonBody = this.parseJsonBody();
             if (jsonBody !== null) {
                 result.json = jsonBody;
             }
