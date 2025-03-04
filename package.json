@@ -1,0 +1,36 @@
+{
+  "name": "@mingzilla/api-client-js",
+  "version": "1.0.0",
+  "description": "A lightweight, promise-based HTTP client for the browser with streaming support",
+  "main": "api-client.js",
+  "types": "api-client.d.ts",
+  "files": [
+    "api-client.js",
+    "api-client.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "echo \"No tests specified\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mingzilla/api-client-js.git"
+  },
+  "keywords": [
+    "http",
+    "client",
+    "api",
+    "fetch",
+    "promise",
+    "browser",
+    "streaming",
+    "batch"
+  ],
+  "author": "Ming Huang (mingzilla)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mingzilla/api-client-js/issues"
+  },
+  "homepage": "https://github.com/mingzilla/api-client-js#readme"
+}

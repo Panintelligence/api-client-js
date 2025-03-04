@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+
+# npm
+npm-debug.log*
+.npm
+.npmrc
+package-lock.json
+
+# editors
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+*.swp
+*.swo
+
+# build output
+dist/
+build/

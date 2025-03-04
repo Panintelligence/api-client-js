@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>api-client-js Example</title>
+    <script src="api-client.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            overflow: auto;
+        }
+        .output {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>api-client-js Example</h1>
+    
+    <div>
+        <button id="getBtn">Send GET Request</button>
+        <button id="postBtn">Send POST Request</button>
+        <button id="streamBtn">Stream Request</button>
+        <button id="batchBtn">Batch Requests</button>
+    </div>
+    
+    <div class="output">
+        <h3>Output:</h3>
+        <pre id="output">Click a button to make a request...</pre>
+    </div>
+    
+    <script>
+        const outputEl = document.getElementById('output');
+        
+        function log(message) {
+            outputEl.textContent += message + '\n';
+            console.log(message);
+        }
+        
+        function clearLog() {
+            outputEl.textContent = '';
+        }
+        
+        // Example GET request
+        document.getElementById('getBtn').addEventListener('click', () => {
+            clearLog();
+            log('Sending GET request...');
+            
+            ApiClient.send(ApiClientInput.get('https://jsonplaceholder.typicode.com/todos/1', {}))
+                .then(response => {
+                    log(`Status: ${response.statusCode}`);
+                    if (response.isSuccessful()) {
+                        const data = response.safeParseJsonBody();
+                        log(`Data: ${JSON.stringify(data, null, 2)}`);
+                    } else {
+                        log(`Error: ${response.getFailureReason()}`);
+                    }
+                });
+        });
+        
+        // Example POST request
+        document.getElementById('postBtn').addEventListener('click', () => {
+            clearLog();
+            log('Sending POST request...');
+            
+            const data = { title: 'foo', body: 'bar', userId: 1 };
+            
+            ApiClient.send(ApiClientInput.postJson('https://jsonplaceholder.typicode.com/posts', data, {}))
+                .then(response => {
+                    log(`Status: ${response.statusCode}`);
+                    if (response.isSuccessful()) {
+                        const data = response.safeParseJsonBody();
+                        log(`Data: ${JSON.stringify(data, null, 2)}`);
+                    } else {
+                        log(`Error: ${response.getFailureReason()}`);
+                    }
+                });
+        });
+        
+        // Example streaming request
+        document.getElementById('streamBtn').addEventListener('click', () => {
+            clearLog();
+            log('Starting stream...');
+            
+            ApiClient.stream(
+                ApiClientInput.get('https://jsonplaceholder.typicode.com/posts', {}),
+                () => log('Stream started'), 
+                (chunk) => log(`Received chunk of size: ${chunk.length} bytes`),
+                (fullResponse) => log(`Stream complete. Received ${fullResponse.body.length} bytes total.`),
+                (error) => log(`Stream error: ${error.getFailureReason()}`)
+            );
+        });
+        
+        // Example batch request
+        document.getElementById('batchBtn').addEventListener('click', () => {
+            clearLog();
+            log('Starting batch requests...');
+            
+            const requests = [
+                ApiClientInput.get('https://jsonplaceholder.typicode.com/todos/1', {}),
+                ApiClientInput.get('https://jsonplaceholder.typicode.com/todos/2', {}),
+                ApiClientInput.get('https://jsonplaceholder.typicode.com/todos/3', {})
+            ];
+            
+            ApiClient.batchSendParallel(
+                requests,
+                () => log('Batch started'),
+                (response) => log(`Completed request: ${response.statusCode}`),
+                (batchResult) => {
+                    const summary = batchResult.safeParseJsonBody();
+                    log(`All requests complete: ${summary.successful}/${summary.total} successful`);
+                },
+                (error) => log(`Batch error: ${error.getFailureReason()}`)
+            );
+        });
+    </script>
+</body>
+</html>
