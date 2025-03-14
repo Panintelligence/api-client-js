@@ -350,6 +350,9 @@ class ApiClient {
      */
     static stream(input, onStart, onChunk, onFinish, onFailure) {
         (async () => {
+            let failed = false;
+            let reader = null;
+
             try {
                 const options = {
                     method: input.method,
@@ -364,6 +367,7 @@ class ApiClient {
                 const response = await fetch(input.url, options);
 
                 if (!response.ok || !response.body) {
+                    failed = true;
                     const errorOutput = ApiClientOutput.createForError(
                         new Error(`Failed to fetch stream. Status: ${response.status}`)
                     );
@@ -373,11 +377,11 @@ class ApiClient {
 
                 onStart();
 
-                const reader = response.body.getReader();
+                reader = response.body.getReader();
                 const decoder = new TextDecoder("utf-8");
                 let fullText = '';
 
-                while (true) {
+                while (!failed) { // Check failed flag at the start of each iteration
                     const {value, done} = await reader.read();
 
                     if (done) {
@@ -391,8 +395,20 @@ class ApiClient {
                     onChunk(chunk);
                 }
             } catch (error) {
-                const errorOutput = ApiClientOutput.createForError(error);
-                onFailure(errorOutput);
+                if (!failed) {
+                    failed = true;
+                    const errorOutput = ApiClientOutput.createForError(error);
+                    onFailure(errorOutput);
+                }
+            } finally {
+                // Release the reader if we have one and an error occurred
+                if (reader && failed) {
+                    try {
+                        reader.releaseLock();
+                    } catch (e) {
+                        // Ignore release errors
+                    }
+                }
             }
         })();
     }
