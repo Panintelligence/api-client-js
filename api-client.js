@@ -1,4 +1,84 @@
 /**
+ * Structured input body for chat completions API
+ * Follows the format described in streaming-api-spec.md
+ */
+class ApiClientInputBody {
+    constructor() {
+        this.model = null;
+        this.messages = [];
+        this.stream = false;
+        this.temperature = null;
+        this.isSse = false; // Internal flag, not part of the actual request
+    }
+
+    /**
+     * Creates a full completion request body
+     *
+     * @param {string|null} model - Model identifier or null to use default
+     * @param {Array} messages - Array of message objects with role and content
+     * @param {boolean} stream - Whether to stream the response
+     * @param {number|null} temperature - Temperature value (0-1) or null for default
+     * @return {ApiClientInputBody} The created input body
+     */
+    static chat(model, messages, stream, temperature) {
+        const body = new ApiClientInputBody();
+        body.model = model;
+        body.messages = messages;
+        body.stream = !!stream;
+        body.temperature = temperature;
+        return body;
+    }
+
+    /**
+     * Creates an SSE completion request body (always streaming)
+     *
+     * @param {string|null} model - Model identifier or null to use default
+     * @param {Array} messages - Array of message objects with role and content
+     * @param {number|null} temperature - Temperature value (0-1) or null for default
+     * @return {ApiClientInputBody} The created input body configured for SSE
+     */
+    static sse(model, messages, temperature) {
+        const body = ApiClientInputBody.chat(model, messages, true, temperature);
+        body.isSse = true;
+        return body;
+    }
+
+    /**
+     * Creates a simple completion request with a single user message
+     *
+     * @param {string} content - The user message content
+     * @param {boolean} stream - Whether to stream the response
+     * @return {ApiClientInputBody} The created input body
+     */
+    static chatMessage(content, stream) {
+        return ApiClientInputBody.chat(
+            null,
+            [{role: "user", content}],
+            stream,
+            null
+        );
+    }
+
+    /**
+     * Converts the input body to a JSON-serializable object
+     *
+     * @return {Object} A JSON-serializable object
+     */
+    toJsonObject() {
+        const result = {};
+
+        if (this.model) result.model = this.model;
+        if (this.messages && this.messages.length > 0) result.messages = this.messages;
+        result.stream = this.stream;
+        if (this.temperature !== null && this.temperature !== undefined) {
+            result.temperature = this.temperature;
+        }
+
+        return result;
+    }
+}
+
+/**
  * Input contract for HTTP requests
  */
 class ApiClientInput {
@@ -134,6 +214,32 @@ class ApiClientInput {
      */
     static patchJson(url, jsonObject, headers) {
         return ApiClientInput.createJson('PATCH', url, jsonObject, headers);
+    }
+
+    /**
+     * Creates an input object for a POST request with an ApiClientInputBody
+     *
+     * @param {string} url - The URL to send the request to
+     * @param {ApiClientInputBody} inputBody - The input body object
+     * @param {Object} headers - Headers for the request
+     * @return {ApiClientInput} A new ApiClientInput configured for chat completions
+     */
+    static chat(url, inputBody, headers) {
+        const mergedHeaders = {
+            'Content-Type': 'application/json',
+            ...(headers || {})
+        };
+
+        // Convert the inputBody to a JSON string
+        const body = JSON.stringify(inputBody.toJsonObject());
+
+        // Create the ApiClientInput
+        const input = ApiClientInput.create('POST', url, body, mergedHeaders);
+
+        // Store the original inputBody for reference during processing
+        input.inputBody = inputBody;
+
+        return input;
     }
 }
 
