@@ -9,6 +9,7 @@ A lightweight, promise-based HTTP client for the browser with streaming support 
 - JSON request and response handling
 - Streaming response processing
 - Parallel batch request processing
+- Chat completions API support (regular, JSON streaming, and SSE)
 - Detailed response information with convenient utility methods
 - Typed interfaces with TypeScript declarations
 - Zero dependencies
@@ -74,7 +75,7 @@ npm install @mingzilla/api-client-js
 ApiClient.send(ApiClientInput.get('https://api.example.com/data', {}))
   .then(response => {
     if (response.isSuccessful()) {
-      const data = response.safeParseJsonBody();
+      const data = response.parseJsonBody();
       console.log('Response data:', data);
     } else {
       console.error('Request failed:', response.getFailureReason());
@@ -102,6 +103,139 @@ ApiClient.stream(
 );
 ```
 
+### Chat Completions API (Regular Request)
+
+```javascript
+// Create a chat input body
+const chatBody = ApiClientInputBody.chat(
+  'model-name', // Model identifier
+  [
+    { role: 'system', content: 'You are a helpful assistant.' },
+    { role: 'user', content: 'Hello, how are you?' }
+  ],
+  false, // Not streaming
+  0.7 // Temperature
+);
+
+// Send the chat request
+ApiClient.send(ApiClientInput.chat('https://api.example.com/chat/completions', chatBody, {}))
+  .then(response => {
+    if (response.isSuccessful()) {
+      const data = response.parseJsonBody();
+      console.log('Assistant response:', data.message.content);
+    } else {
+      console.error('Chat request failed:', response.getFailureReason());
+    }
+  });
+```
+
+### Chat Completions API (JSON Streaming)
+
+```javascript
+// Create a streaming chat input body
+const streamingChatBody = ApiClientInputBody.chat(
+  'model-name', // Model identifier
+  [
+    { role: 'system', content: 'You are a helpful assistant.' },
+    { role: 'user', content: 'Write a short poem about coding.' }
+  ],
+  true, // Enable streaming
+  0.7 // Temperature
+);
+
+let fullResponse = '';
+
+// Send the streaming chat request
+ApiClient.stream(
+  ApiClientInput.chat('https://api.example.com/chat/completions', streamingChatBody, {}),
+  () => console.log('Chat stream started'), // onStart
+  (chunk) => {
+    try {
+      // Each chunk is a JSON object with a message fragment
+      const jsonChunk = JSON.parse(chunk);
+      if (jsonChunk.message && jsonChunk.message.content) {
+        const content = jsonChunk.message.content;
+        fullResponse += content;
+        console.log('Received content:', content);
+      }
+    } catch (e) {
+      console.warn('Failed to parse chunk as JSON:', chunk);
+    }
+  }, // onChunk
+  (response) => {
+    console.log('Chat stream complete, full response:', fullResponse);
+  }, // onFinish
+  (error) => console.error('Chat stream error:', error.getFailureReason()) // onFailure
+);
+```
+
+### Chat Completions API (Server-Sent Events)
+
+```javascript
+// Create an SSE chat input body (streaming is always enabled for SSE)
+const sseChatBody = ApiClientInputBody.sse(
+  'model-name', // Model identifier
+  [
+    { role: 'system', content: 'You are a helpful assistant.' },
+    { role: 'user', content: 'Explain how SSE works.' }
+  ],
+  0.7 // Temperature
+);
+
+let sseResponse = '';
+let eventSource = null;
+
+// For SSE, we'll use the browser's EventSource API
+function startSSEStream() {
+  // First, prepare the request by converting the input body to JSON
+  const requestBody = sseChatBody.toJsonObject();
+  
+  // Create URL with parameters for GET request
+  const params = new URLSearchParams();
+  params.append('request', JSON.stringify(requestBody));
+  
+  // Create and configure EventSource
+  eventSource = new EventSource(`https://api.example.com/chat/sse?${params.toString()}`);
+  
+  // Handle incoming messages
+  eventSource.onmessage = (event) => {
+    if (event.data === '[END]') {
+      console.log('SSE stream ended');
+      eventSource.close();
+      console.log('Complete SSE response:', sseResponse);
+    } else {
+      try {
+        const jsonData = JSON.parse(event.data);
+        if (jsonData.message && jsonData.message.content) {
+          const content = jsonData.message.content;
+          sseResponse += content;
+          console.log('SSE chunk:', content);
+        }
+      } catch (e) {
+        console.warn('Failed to parse SSE data:', event.data);
+      }
+    }
+  };
+  
+  // Handle errors
+  eventSource.onerror = (error) => {
+    console.error('SSE error:', error);
+    eventSource.close();
+  };
+}
+
+// Start the SSE stream
+startSSEStream();
+
+// To stop the stream manually
+function stopSSEStream() {
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+}
+```
+
 ### Parallel Batch Requests
 
 ```javascript
@@ -115,12 +249,22 @@ ApiClient.batchSendParallel(
   requests,
   () => console.log('Batch started'), // onStart
   (response) => console.log('Completed request:', response.statusCode), // onUnit
-  (batchResult) => console.log('All requests complete:', batchResult.safeParseJsonBody()), // onFinished
+  (batchResult) => console.log('All requests complete:', batchResult.parseJsonBody()), // onFinished
   (error) => console.error('Batch error:', error.getFailureReason()) // onFailure
 );
 ```
 
 ## API Reference
+
+### ApiClientInputBody
+
+Factory class for creating chat completion request bodies.
+
+#### Static Methods
+
+- `chat(model, messages, stream, temperature)`: Create a chat completion request body
+- `sse(model, messages, temperature)`: Create an SSE chat completion request body
+- `chatMessage(content, stream)`: Create a simple chat completion with a single user message
 
 ### ApiClientInput
 
@@ -138,6 +282,7 @@ Factory class for creating HTTP request inputs.
 - `postJson(url, jsonObject, headers)`: Create a POST request with a JSON body
 - `putJson(url, jsonObject, headers)`: Create a PUT request with a JSON body
 - `patchJson(url, jsonObject, headers)`: Create a PATCH request with a JSON body
+- `chat(url, inputBody, headers)`: Create a chat completions request
 
 ### ApiClientOutput
 
@@ -155,8 +300,7 @@ Class representing HTTP response outputs with utility methods.
 - `isSuccessful()`: Returns true if request was successful (status 200-299)
 - `getFailureReason()`: Returns error message if request failed
 - `getHeader(name)`: Get a specific header value
-- `parseJsonBody()`: Parse response body as JSON (throws if invalid)
-- `safeParseJsonBody()`: Parse response body as JSON (returns null if invalid)
+- `parseJsonBody()`: Parse response body as JSON (returns null if invalid)
 - `asMap()`: Return response data as a convenient map
 
 ### ApiClient
