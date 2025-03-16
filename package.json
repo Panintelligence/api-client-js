@@ -1,6 +1,6 @@
 {
   "name": "@mingzilla/api-client-js",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A lightweight, promise-based HTTP client for the browser with streaming support",
   "main": "api-client.js",
   "types": "api-client.d.ts",
