@@ -293,7 +293,7 @@ Class representing HTTP response outputs with utility methods.
 - `statusCode`: HTTP status code
 - `headers`: Response headers
 - `body`: Response body as string
-- `exception`: Error object if request failed
+- `error`: Error object if request failed
 
 #### Methods
 
@@ -312,6 +312,7 @@ Static utility class for making HTTP requests.
 - `send(input)`: Make an HTTP request
 - `stream(input, onStart, onChunk, onFinish, onFailure)`: Make a streaming HTTP request
 - `batchSendParallel(inputs, onStart, onUnit, onFinished, onFailure)`: Execute multiple requests in parallel
+- `isDone(record)`: Determines if a stream is completed based on reader record from fetch API
 
 ## License
 

@@ -251,7 +251,7 @@ class ApiClientOutput {
         this.statusCode = 0;
         this.headers = {};
         this.body = null;
-        this.exception = null;
+        this.error = null;
     }
 
     /**
@@ -260,16 +260,16 @@ class ApiClientOutput {
      * @return {boolean} true if the request was successful (status 200-299), false otherwise
      */
     isSuccessful() {
-        return this.exception === null && this.statusCode >= 200 && this.statusCode < 300;
+        return this.error === null && this.statusCode >= 200 && this.statusCode < 300;
     }
 
     /**
      * Gets the reason for failure if the request failed
      *
-     * @return {string|null} The error message if an exception occurred, null otherwise
+     * @return {string|null} The error message if an error occurred, null otherwise
      */
     getFailureReason() {
-        return this.exception ? this.exception.message : null;
+        return this.error ? this.error.message : null;
     }
 
     /**
@@ -331,7 +331,7 @@ class ApiClientOutput {
             body: this.body
         };
 
-        if (this.exception) {
+        if (this.error) {
             result.error = this.getFailureReason();
         }
 
@@ -349,12 +349,12 @@ class ApiClientOutput {
     /**
      * Creates an output object for an error
      *
-     * @param {Error} error - The exception that occurred
-     * @return {ApiClientOutput} A new ApiClientOutput with the exception set
+     * @param {Error} error - The error that occurred
+     * @return {ApiClientOutput} A new ApiClientOutput with the error set
      */
     static createForError(error) {
         const output = new ApiClientOutput();
-        output.exception = error;
+        output.error = error;
         output.statusCode = 0; // Indicate a client-side error
         return output;
     }
@@ -370,14 +370,7 @@ class ApiClientOutput {
         const output = new ApiClientOutput();
         output.statusCode = response.status;
         output.body = body;
-
-        // Convert headers from Response to a simple object
-        const headers = {};
-        response.headers.forEach((value, name) => {
-            headers[name] = value;
-        });
-        output.headers = headers;
-
+        output.headers = ApiClientOutput.createHeaders(response);
         return output;
     }
 
@@ -394,22 +387,45 @@ class ApiClientOutput {
         } catch (e) {
             const output = new ApiClientOutput();
             output.statusCode = response.status;
-            output.exception = e;
+            output.headers = ApiClientOutput.createHeaders(response);
+            output.error = e;
             output.body = `Error reading response body: ${e.message}`;
-
-            // Still try to get headers
-            try {
-                const headers = {};
-                response.headers.forEach((value, name) => {
-                    headers[name] = value;
-                });
-                output.headers = headers;
-            } catch (headerError) {
-                // If we can't get headers, just continue
-            }
-
             return output;
         }
+    }
+
+    /**
+     * Creates an output object for a response error
+     *
+     * @param {Response} response - The fetch Response object containing an error
+     * @return {ApiClientOutput} A new ApiClientOutput with error information
+     */
+    static createResponseError(response) {
+        const output = new ApiClientOutput();
+        output.statusCode = response.status;
+        output.headers = ApiClientOutput.createHeaders(response);
+        try {
+            output.error = {
+                message: `Server returned ${response.status}`,
+                type: 'http_error',
+                code: response.status.toString()
+            };
+        } catch (headerError) {
+            output.error = response['error'] || response;
+        }
+
+        return output;
+    }
+
+    static createHeaders(response) {
+        const headers = {};
+        try {
+            response.headers.forEach((value, name) => {
+                headers[name] = value;
+            });
+        } catch (ignore) {
+        }
+        return headers;
     }
 }
 
@@ -474,9 +490,7 @@ class ApiClient {
 
                 if (!response.ok || !response.body) {
                     failed = true;
-                    const errorOutput = ApiClientOutput.createForError(
-                        new Error(`Failed to fetch stream. Status: ${response.status}`)
-                    );
+                    const errorOutput = ApiClientOutput.createResponseError(response);
                     onFailure(errorOutput);
                     return;
                 }
@@ -487,14 +501,18 @@ class ApiClient {
                 const decoder = new TextDecoder("utf-8");
                 let fullText = '';
 
-                while (!failed) { // Check failed flag at the start of each iteration
-                    const {value, done} = await reader.read();
+                while (!failed) {
+                    const record = await reader.read();
+                    const isDone = ApiClient.isDone(record);
 
-                    if (done) {
+                    if (isDone) {
                         const output = ApiClientOutput.createForSuccess(response, fullText);
                         onFinish(output);
                         break;
                     }
+
+                    const value = record.value;
+                    if (!value) continue;
 
                     const chunk = decoder.decode(value, {stream: true});
                     fullText += chunk;
@@ -579,5 +597,39 @@ class ApiClient {
                 throw error; // Re-throw for Promise rejection
             }
         })();
+    }
+
+    /**
+     * Determines if a stream is completed based on the reader record
+     *
+     * @param {Object} record - The record from reader.read()
+     * @return {boolean} true if the stream is done, false otherwise
+     */
+    static isDone(record) {
+        if (record.done) return true; // Check if reader is done at network level
+        if (!record.value) return false; // No value to process
+
+        try {
+            const chunk = new TextDecoder("utf-8").decode(record.value, {stream: true});
+            if (chunk.includes('data: [END]')) return true; // Check for SSE end marker
+
+            // Check for JSON stream completion marker
+            if (chunk.includes('"done":true') || chunk.includes('"done": true')) {
+                const lines = chunk.split('\n');
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    try {
+                        const json = JSON.parse(line);
+                        if (json.done === true) return true;
+                    } catch (e) {
+                        // Not valid JSON, continue
+                    }
+                }
+            }
+        } catch (e) {
+            // Error processing chunk, assume not done
+        }
+
+        return false;
     }
 }
