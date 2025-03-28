@@ -199,7 +199,7 @@ function startSSEStream() {
   
   // Handle incoming messages
   eventSource.onmessage = (event) => {
-    if (event.data === '[END]') {
+    if (event.data === '[DONE]') {
       console.log('SSE stream ended');
       eventSource.close();
       console.log('Complete SSE response:', sseResponse);

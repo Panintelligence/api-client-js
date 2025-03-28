@@ -611,7 +611,7 @@ class ApiClient {
 
         try {
             const chunk = new TextDecoder("utf-8").decode(record.value, {stream: true});
-            if (chunk.includes('data: [END]')) return true; // Check for SSE end marker
+            if (chunk.includes('data: [DONE]')) return true; // Check for SSE end marker
 
             // Check for JSON stream completion marker
             if (chunk.includes('"done":true') || chunk.includes('"done": true')) {
