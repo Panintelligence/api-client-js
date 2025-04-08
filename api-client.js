@@ -525,10 +525,10 @@ class ApiClient {
                     onFailure(errorOutput);
                 }
             } finally {
-                // Release the reader if we have one and an error occurred
-                if (reader && failed) {
+                // Release the reader
+                if (reader) {
                     try {
-                        reader.releaseLock();
+                        reader.releaseLock(); // Letting the stream be garbage collected 
                     } catch (e) {
                         // Ignore release errors
                     }
